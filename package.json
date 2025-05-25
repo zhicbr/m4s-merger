@@ -1,0 +1,73 @@
+{
+  "name": "m4s-merger",
+  "version": "1.0.0",
+  "description": "M4S文件合并工具 - 图形化界面批量处理视频音频合并",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build"
+  },
+  "keywords": [
+    "m4s",
+    "video",
+    "audio",
+    "merger",
+    "ffmpeg",
+    "electron",
+    "gui"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0",
+    "cross-env": "^7.0.3"
+  },
+  "build": {
+    "appId": "com.yourname.m4s-merger",
+    "productName": "M4S文件合并工具",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/m4s-merger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/m4s-merger/issues"
+  },
+  "homepage": "https://github.com/yourusername/m4s-merger#readme"
+}
