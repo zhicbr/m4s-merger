@@ -63,22 +63,20 @@ ipcMain.handle('select-folder', async () => {
 ipcMain.handle('scan-folder', async (event, folderPath) => {
     try {
         console.log('开始扫描文件夹:', folderPath);
-        
-        // 检查文件夹是否存在
+
         const stats = await fs.stat(folderPath);
         if (!stats.isDirectory()) {
             throw new Error('指定路径不是文件夹');
         }
 
-        // 读取文件夹内容
         const files = await fs.readdir(folderPath);
         console.log('找到文件:', files.length, '个');
 
-        // 筛选M4S文件
         const m4sFiles = files.filter(file => file.toLowerCase().endsWith('.m4s'));
+        // --- BARU: Buat Set file MP4 untuk pencarian cepat ---
+        const mp4Files = new Set(files.filter(file => file.toLowerCase().endsWith('.mp4')));
         console.log('M4S文件:', m4sFiles);
 
-        // 分组配对
         const filePairs = [];
         const processedFiles = new Set();
 
@@ -88,10 +86,12 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
             const baseName = file.replace(/_audio\.m4s$|\.m4s$/i, '');
             const videoFile = `${baseName}.m4s`;
             const audioFile = `${baseName}_audio.m4s`;
+            const outputFile = `${baseName}.mp4`; // Nama file output
 
-            // 检查文件是否存在
             const hasVideo = m4sFiles.includes(videoFile);
             const hasAudio = m4sFiles.includes(audioFile);
+            // --- BARU: Periksa apakah file MP4 output sudah ada ---
+            const outputExists = mp4Files.has(outputFile);
 
             if (hasVideo || hasAudio) {
                 filePairs.push({
@@ -99,7 +99,9 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
                     baseName: baseName,
                     videoFile: hasVideo ? videoFile : null,
                     audioFile: hasAudio ? audioFile : null,
-                    outputFile: `${baseName}.mp4`,
+                    outputFile: outputFile,
+                    // --- BARU: Tambahkan flag outputExists ---
+                    outputExists: outputExists,
                     status: (hasVideo && hasAudio) ? 'ready' : 'missing',
                     hasVideo: hasVideo,
                     hasAudio: hasAudio,
@@ -127,7 +129,6 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
         };
     }
 });
-
 // 合并单个文件
 ipcMain.handle('merge-file', async (event, filePair) => {
     return new Promise((resolve) => {
