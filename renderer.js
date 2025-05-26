@@ -10,6 +10,22 @@ class M4SMerger {
         
         this.initEventListeners();
         this.checkFFmpegAvailability();
+        this.loadLastFolder();
+    }
+    
+    async loadLastFolder() {
+        try {
+            const result = await window.electronAPI.getLastFolder();
+            if (result.success && result.lastFolder) {
+                const folderPath = result.lastFolder;
+                document.getElementById('folderPath').value = folderPath;
+                this.currentFolderPath = folderPath;
+                document.getElementById('scanFolder').disabled = false;
+                this.addLog(`已加载上次使用的文件夹: ${folderPath}`, 'info');
+            }
+        } catch (error) {
+            console.error('加载上次文件夹失败:', error);
+        }
     }
 
     async checkFFmpegAvailability() {
@@ -62,7 +78,15 @@ class M4SMerger {
             return;
         }
 
-        this.showLoading('scan', true);
+        // 保存当前文件夹路径
+        try {
+            await window.electronAPI.saveLastFolder(folderPath);
+        } catch (error) {
+            console.error('保存文件夹路径失败:', error);
+        }
+
+        // 移除加载动画，直接显示扫描中的文本
+        document.getElementById('scanFolder').disabled = true;
         this.addLog('开始扫描文件夹: ' + folderPath, 'info');
         
         try {
@@ -89,7 +113,7 @@ class M4SMerger {
         } catch (error) {
             this.addLog('扫描出错: ' + error.message, 'error');
         } finally {
-            this.showLoading('scan', false);
+            document.getElementById('scanFolder').disabled = false;
         }
     }
 
@@ -206,7 +230,7 @@ class M4SMerger {
         this.errorCount = 0;
         this.currentProgress = 0;
         
-        this.showLoading('merge', true);
+        // 移除加载动画，直接禁用按钮
         document.getElementById('progressSection').classList.remove('hidden');
         document.getElementById('progressSection').classList.add('fade-in');
         document.getElementById('startMerge').disabled = true;
@@ -222,7 +246,6 @@ class M4SMerger {
         }
         
         this.isProcessing = false;
-        this.showLoading('merge', false);
         document.getElementById('startMerge').disabled = false;
         
         const successCount = this.completedCount;
@@ -306,12 +329,7 @@ class M4SMerger {
         document.getElementById('progressText').textContent = text;
     }
 
-    showLoading(type, show) {
-        const loadingElement = document.getElementById(type + 'Loading');
-        if (loadingElement) {
-            loadingElement.classList.toggle('hidden', !show);
-        }
-    }
+    // 已移除showLoading函数，不再需要加载动画
 
     addLog(message, type = 'info') {
         const container = document.getElementById('logContainer');

@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 检查FFmpeg
     checkFFmpeg: () => ipcRenderer.invoke('check-ffmpeg'),
     
+    // 获取上次打开的文件夹路径
+    getLastFolder: () => ipcRenderer.invoke('get-last-folder'),
+    
+    // 保存上次打开的文件夹路径
+    saveLastFolder: (folderPath) => ipcRenderer.invoke('save-last-folder', folderPath),
+    
     // 监听FFmpeg进度
     onFFmpegProgress: (callback) => {
         ipcRenderer.on('ffmpeg-progress', callback);

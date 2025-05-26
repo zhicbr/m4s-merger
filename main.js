@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const { spawn } = require('child_process');
+const { existsSync, writeFileSync, readFileSync } = require('fs');
+
+// 存储上次打开的文件夹路径的文件
+const LAST_FOLDER_FILE = path.join(app.getPath('userData'), 'last_folder.json');
 
 let mainWindow;
 
@@ -35,6 +39,21 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
+// 获取上次打开的文件夹路径
+ipcMain.handle('get-last-folder', async () => {
+    try {
+        if (existsSync(LAST_FOLDER_FILE)) {
+            const data = readFileSync(LAST_FOLDER_FILE, 'utf8');
+            const { lastFolder } = JSON.parse(data);
+            return { success: true, lastFolder };
+        }
+        return { success: false };
+    } catch (error) {
+        console.error('读取上次文件夹路径失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
@@ -56,7 +75,28 @@ ipcMain.handle('select-folder', async () => {
         title: '选择包含M4S文件的文件夹'
     });
     
+    // 如果用户选择了文件夹，保存路径
+    if (!result.canceled && result.filePaths.length > 0) {
+        try {
+            const folderPath = result.filePaths[0];
+            writeFileSync(LAST_FOLDER_FILE, JSON.stringify({ lastFolder: folderPath }));
+        } catch (error) {
+            console.error('保存文件夹路径失败:', error);
+        }
+    }
+    
     return result;
+});
+
+// 保存上次打开的文件夹路径
+ipcMain.handle('save-last-folder', async (event, folderPath) => {
+    try {
+        writeFileSync(LAST_FOLDER_FILE, JSON.stringify({ lastFolder: folderPath }));
+        return { success: true };
+    } catch (error) {
+        console.error('保存文件夹路径失败:', error);
+        return { success: false, error: error.message };
+    }
 });
 
 // 扫描文件夹
