@@ -100,115 +100,120 @@ ipcMain.handle('save-last-folder', async (event, folderPath) => {
 });
 
 // 扫描文件夹
+// 修改后的 main.js 扫描逻辑
+// 扫描文件夹（优化后的兼容性递归版本）
 ipcMain.handle('scan-folder', async (event, folderPath) => {
     try {
-        console.log('开始扫描文件夹:', folderPath);
+        const { join, relative } = require('path');
+        const { readdir, stat } = require('fs').promises;
 
-        const stats = await fs.stat(folderPath);
-        if (!stats.isDirectory()) {
-            throw new Error('指定路径不是文件夹');
+        // 递归获取所有文件的函数
+        async function getAllFiles(dirPath, arrayOfFiles = []) {
+            const files = await readdir(dirPath, { withFileTypes: true });
+
+            for (const file of files) {
+                const fullPath = join(dirPath, file.name);
+                if (file.isDirectory()) {
+                    await getAllFiles(fullPath, arrayOfFiles);
+                } else {
+                    arrayOfFiles.push({
+                        fullPath: fullPath,
+                        name: file.name,
+                        dir: dirPath
+                    });
+                }
+            }
+            return arrayOfFiles;
         }
 
-        const files = await fs.readdir(folderPath);
-        console.log('找到文件:', files.length, '个');
-
-        const m4sFiles = files.filter(file => file.toLowerCase().endsWith('.m4s'));
-        // --- BARU: Buat Set file MP4 untuk pencarian cepat ---
-        const mp4Files = new Set(files.filter(file => file.toLowerCase().endsWith('.mp4')));
-        console.log('M4S文件:', m4sFiles);
+        const allFiles = await getAllFiles(folderPath);
+        
+        const m4sFiles = allFiles.filter(f => f.name.toLowerCase().endsWith('.m4s'));
+        const mp4FilesSet = new Set(
+            allFiles.filter(f => f.name.toLowerCase().endsWith('.mp4')).map(f => f.fullPath)
+        );
 
         const filePairs = [];
-        const processedFiles = new Set();
+        const processedPaths = new Set();
 
-        for (const file of m4sFiles) {
-            if (processedFiles.has(file)) continue;
+        for (const fileObj of m4sFiles) {
+            if (processedPaths.has(fileObj.fullPath)) continue;
 
-            const baseName = file.replace(/_audio\.m4s$|\.m4s$/i, '');
-            const videoFile = `${baseName}.m4s`;
-            const audioFile = `${baseName}_audio.m4s`;
-            const outputFile = `${baseName}.mp4`; // Nama file output
+            // 提取基础名
+            const baseName = fileObj.name.replace(/_audio\.m4s$|\.m4s$/i, '');
+            const dir = fileObj.dir;
+            
+            // 构建同一目录下的对应文件
+            const videoPath = join(dir, `${baseName}.m4s`);
+            const audioPath = join(dir, `${baseName}_audio.m4s`);
+            const outputPath = join(dir, `${baseName}.mp4`);
 
-            const hasVideo = m4sFiles.includes(videoFile);
-            const hasAudio = m4sFiles.includes(audioFile);
-            // --- BARU: Periksa apakah file MP4 output sudah ada ---
-            const outputExists = mp4Files.has(outputFile);
+            const hasVideo = m4sFiles.some(f => f.fullPath === videoPath);
+            const hasAudio = m4sFiles.some(f => f.fullPath === audioPath);
+            const outputExists = mp4FilesSet.has(outputPath);
 
             if (hasVideo || hasAudio) {
                 filePairs.push({
                     id: filePairs.length + 1,
                     baseName: baseName,
-                    videoFile: hasVideo ? videoFile : null,
-                    audioFile: hasAudio ? audioFile : null,
-                    outputFile: outputFile,
-                    // --- BARU: Tambahkan flag outputExists ---
+                    // 存储绝对路径，避免合并时找不到文件
+                    videoFile: hasVideo ? videoPath : null,
+                    audioFile: hasAudio ? audioPath : null,
+                    // 存储相对路径，用于在界面展示，让用户知道在哪个子文件夹
+                    videoRel: hasVideo ? relative(folderPath, videoPath) : '缺失',
+                    audioRel: hasAudio ? relative(folderPath, audioPath) : '缺失',
+                    outputFile: outputPath,
+                    outputRel: relative(folderPath, outputPath),
                     outputExists: outputExists,
                     status: (hasVideo && hasAudio) ? 'ready' : 'missing',
                     hasVideo: hasVideo,
                     hasAudio: hasAudio,
-                    folderPath: folderPath
+                    folderPath: dir 
                 });
 
-                processedFiles.add(videoFile);
-                processedFiles.add(audioFile);
+                processedPaths.add(videoPath);
+                processedPaths.add(audioPath);
             }
         }
 
-        console.log('找到文件对:', filePairs.length, '组');
         return {
             success: true,
             pairs: filePairs,
-            totalFiles: files.length,
-            m4sFiles: m4sFiles.length
+            totalFiles: allFiles.length
         };
-
     } catch (error) {
-        console.error('扫描文件夹出错:', error);
-        return {
-            success: false,
-            error: error.message
-        };
+        console.error('扫描失败:', error);
+        return { success: false, error: error.message };
     }
 });
 // 合并单个文件
+// 合并单个文件（适配绝对路径版本）
 ipcMain.handle('merge-file', async (event, filePair) => {
     return new Promise((resolve) => {
         try {
-            const { folderPath, videoFile, audioFile, outputFile } = filePair;
+            // 注意：此时的 videoFile, audioFile, outputFile 已经是全路径了
+            const { videoFile, audioFile, outputFile } = filePair;
             
-            const videoPath = path.join(folderPath, videoFile);
-            const audioPath = path.join(folderPath, audioFile);
-            const outputPath = path.join(folderPath, outputFile);
+            if (!videoFile || !audioFile) {
+                throw new Error('音视频文件路径不完整');
+            }
 
-            console.log('开始合并:', {
-                video: videoPath,
-                audio: audioPath,
-                output: outputPath
-            });
+            console.log('开始合并:', { videoFile, audioFile, outputFile });
 
-            // 构建FFmpeg命令
             const args = [
-                '-i', videoPath,
-                '-i', audioPath,
+                '-i', videoFile,
+                '-i', audioFile,
                 '-c', 'copy',
-                '-y', // 覆盖输出文件
-                outputPath
+                '-y',
+                outputFile
             ];
 
             const ffmpeg = spawn('ffmpeg', args);
-            let output = '';
             let errorOutput = '';
 
-            // 捕获标准输出
-            ffmpeg.stdout.on('data', (data) => {
-                output += data.toString();
-            });
-
-            // 捕获错误输出（FFmpeg主要信息在stderr中）
             ffmpeg.stderr.on('data', (data) => {
                 const text = data.toString();
                 errorOutput += text;
-                
-                // 发送实时进度信息到渲染进程
                 event.sender.send('ffmpeg-progress', {
                     fileId: filePair.id,
                     output: text
@@ -216,43 +221,25 @@ ipcMain.handle('merge-file', async (event, filePair) => {
             });
 
             ffmpeg.on('close', (code) => {
-                console.log(`FFmpeg进程结束，退出码: ${code}`);
-                
                 if (code === 0) {
-                    resolve({
-                        success: true,
-                        output: errorOutput,
-                        outputPath: outputPath
-                    });
+                    resolve({ success: true, outputPath: outputFile });
                 } else {
-                    resolve({
-                        success: false,
-                        error: `FFmpeg退出码: ${code}`,
-                        output: errorOutput
-                    });
+                    resolve({ success: false, error: `FFmpeg退出码: ${code}`, output: errorOutput });
                 }
             });
 
             ffmpeg.on('error', (error) => {
-                console.error('FFmpeg启动失败:', error);
-                resolve({
-                    success: false,
-                    error: error.message.includes('ENOENT') 
-                        ? 'FFmpeg未安装或不在系统PATH中' 
-                        : error.message
+                resolve({ 
+                    success: false, 
+                    error: error.message.includes('ENOENT') ? 'FFmpeg未安装' : error.message 
                 });
             });
 
         } catch (error) {
-            console.error('合并文件出错:', error);
-            resolve({
-                success: false,
-                error: error.message
-            });
+            resolve({ success: false, error: error.message });
         }
     });
 });
-
 // 打开文件夹
 ipcMain.handle('open-folder', async (event, folderPath) => {
     try {

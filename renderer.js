@@ -123,13 +123,12 @@ class M4SMerger {
 
         this.filePairs.forEach(pair => {
             const row = document.createElement('tr');
-            // --- MODIFIKASI: Perbarui kolom output file ---
             row.innerHTML = `
                 <td>
                     <div class="checkbox-container">
                         <input type="checkbox" id="checkbox_${pair.id}" class="custom-checkbox"
-                               ${pair.status === 'ready' ? '' : 'disabled'}
-                               onchange="merger.toggleSelection(${pair.id}, this.checked)">
+                            ${pair.status === 'ready' ? '' : 'disabled'}
+                            onchange="merger.toggleSelection(${pair.id}, this.checked)">
                     </div>
                 </td>
                 <td>
@@ -137,9 +136,10 @@ class M4SMerger {
                     ${this.getStatusText(pair.status)}
                 </td>
                 <td><strong>${pair.baseName}</strong></td>
-                <td>${pair.hasVideo ? '✅ ' + pair.videoFile : '❌ 缺失'}</td>
-                <td>${pair.hasAudio ? '✅ ' + pair.audioFile : '❌ 缺失'}</td>
-                <td>${pair.outputExists ? `✅ <b>已存在</b> (${pair.outputFile})` : pair.outputFile}</td>
+                <!-- 这里改用 Rel 相对路径，显示更直观 -->
+                <td>${pair.hasVideo ? '✅ ' + pair.videoRel : '❌ 缺失'}</td>
+                <td>${pair.hasAudio ? '✅ ' + pair.audioRel : '❌ 缺失'}</td>
+                <td>${pair.outputExists ? `✅ <b>已存在</b> (${pair.outputRel})` : pair.outputRel}</td>
             `;
             tbody.appendChild(row);
         });
